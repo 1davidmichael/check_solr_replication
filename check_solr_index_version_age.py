@@ -40,6 +40,7 @@ Options:
   -t TIMEOUT, --timeout=TIMEOUT
                         The timeout for the request to solr
   -d, --disabled        The monitoring check is disabled, just return ok status
+  --tls                 Use TLS to connect to solr
 
 The three checks are:
 
@@ -47,7 +48,7 @@ The three checks are:
       timestamp, to the current time on the server which is running the script.  Therefore if you specify -s value that isn't the current localhost,
       then you could be affected by timescew (NTP). The -c and -w are the number of seconds old the index can be.
 
--R  : Calls the slave's replication details endpoint. And obtains the "indexVersion" of the slave and master, and compares these two values against 
+-R  : Calls the slave's replication details endpoint. And obtains the "indexVersion" of the slave and master, and compares these two values against
       each other.  The -c and -w are the number of seconds difference there can be between the master and slave index
 
 -P  : Just calls the ping endpoint on the solr admin, to check the core is available
@@ -55,7 +56,7 @@ The three checks are:
 Examples:
 
 Check that the replication on this slave node, is less than 5 mins (300seconds) behind the index on the master or issue a warning.
-Or if more than 10 mins behind issue a critical alert. (/replication?command=details&wt=json) 
+Or if more than 10 mins behind issue a critical alert. (/replication?command=details&wt=json)
 
 ./check_solr_index_version_age.py -i core1,core2 -R -H localhost -p 8080 -u solr -w 300 -c 600
 
@@ -76,18 +77,18 @@ check_solr_index_version_age.py' -i core1 -R -H localhost -p 8080 -u solr -w 10 
 {
     "critical_cores": [
         "core1"
-    ], 
+    ],
     "details": [
         {
-            "age(s)": "-1", 
-            "core": "core1", 
+            "age(s)": "-1",
+            "core": "core1",
             "msg": "timeout calling http://localhost:8080/solr/core1/replication?wt=json&command=details"
         }
-    ], 
-    "num_cores_checked": "1", 
-    "num_ok_cores": "0", 
-    "ok_cores": [], 
-    "status": "CRITICAL", 
+    ],
+    "num_cores_checked": "1",
+    "num_ok_cores": "0",
+    "ok_cores": [],
+    "status": "CRITICAL",
     "warning_cores": []
 }
 
@@ -103,18 +104,18 @@ from optparse import OptionParser
 
 def repstatus(core,timeout,corestatuschecks):
     """ calls <core>/replication?command=details&wt=json
-    
+
     Obtaining the slave and master index version from the json output, and returns the difference in
     seconds between the two for the given core
-    
+
     core -- the name of the core to check the index difference for
     timeout -- the time to wait for the http request to solr before returning with -1
     corestatuschecks -- the dict() object to record the time difference in, and any error message
 
     """
     replicationUrl     = baseurl + core + '/replication?' + urllib.urlencode({'command':'details','wt':'json'})
-    
-    diff = 0  
+
+    diff = 0
     rdata = callUrl(replicationUrl,timeout,corestatuschecks,core)
 
     if(len(rdata)==0):
@@ -126,13 +127,13 @@ def repstatus(core,timeout,corestatuschecks):
         if diff!=-1:
             diff = -1
             recordCheckMsg(core,'All Slave index version information not available. Host ok? '+replicationUrl,corestatuschecks)
-        
+
     else:
         slaveindexversion  = rdata['details'].get('indexVersion')
         if rdata['details']['slave'].get('masterDetails') == None:
             diff = -1
             recordCheckMsg(core,'Slave unable to retrieve master index version information. Host able to contact master? '+replicationUrl,corestatuschecks)
-        else: 
+        else:
             masterindexversion = rdata['details']['slave']['masterDetails'].get('indexVersion')
 
     if slaveindexversion == None:
@@ -153,12 +154,12 @@ def repstatus(core,timeout,corestatuschecks):
 
 def solrping(core,timeout,corestatuschecks):
     """ calls <core>/admin/ping?wt=json
-    
+
     parses the json output for the 'status' json response
-    
+
     core -- the name of the core to check for existence
     timeout -- the amount of time to wait on the request to solr for the ping, before stopping
-     
+
     """
     ping_cmd = baseurl + core + '/admin/ping?' + urllib.urlencode({'wt':'json'})
 
@@ -187,13 +188,13 @@ def solrping(core,timeout,corestatuschecks):
 
 def indexAgeInSeconds(core,timeout,corestatuschecks):
     """ calls <core>/replication?command=indexversion&wt=json
-    
+
     Obtains the indexversion for the current core/index.  The indexversion is the milliseconds
     since epoch of the last time a commit was done on the core.
-    
+
     This epoch is converted to seconds and compared to now() time on the current server where the script
     is executing.  It returns the difference in seconds between the two values.
-    
+
     core -- the name of the core to obtain the index version for
     timeout -- the amount of time to wait on the request to solr
     corestatuschecks -- the dict object to store the index seconds diff from now() and any associated error msg
@@ -201,7 +202,7 @@ def indexAgeInSeconds(core,timeout,corestatuschecks):
     """
 
     replicationUrl = baseurl + core + '/replication?' + urllib.urlencode({'wt':'json', 'command' : 'indexversion'})
-  
+
     diff = 0
     data = callUrl(replicationUrl,timeout,corestatuschecks,core)
     if(len(data)==0):
@@ -209,7 +210,7 @@ def indexAgeInSeconds(core,timeout,corestatuschecks):
 
     if(data.get('indexversion') != None):
         ts = datetime.datetime.fromtimestamp(int(data.get('indexversion'))/1000)
-        today = datetime.datetime.today()    
+        today = datetime.datetime.today()
         diff = diffInSeconds(today,ts)
     else:
         recordCheckMsg(core,'index version information not available. Is the node avaialable? '+replicationUrl,corestatuschecks)
@@ -246,36 +247,36 @@ def callUrl(url,timeout,corestatuschecks,core):
         recordCheckMsg(core,'socket error calling:'+url,corestatuschecks)
 
     return data
-    
+
 def recordAge(core,age,corestatuschecks):
     """  record the index age for the given core for later reporting
-    
+
     core -- the name of the core to save the age
     age -- the number in seconds for age of the index in that core
     corestatuschecks - the dict object to save the age in associated to the core
-     
+
     """
     corestatuschecks[core]['age'] = age
-    
+
 
 def recordCheckMsg(core,msg,corestatuschecks):
     """ record a message against for the given core for later reporting
-    
+
     core -- the name of the core
     msg -- the string message to save
     corestatuschecks -- the dict object to save the message in
-    
+
     """
 
     corestatuschecks[core]['msg'] = msg
 
-    
+
 def diffInSeconds(date1,date2):
     """ returns the difference in seconds between the two dates
-    
-    date1 -- date 1 to compare 
+
+    date1 -- date 1 to compare
     date2 -- date 2 to compare
-    
+
     """
 
     if(date1>date2) :
@@ -288,10 +289,10 @@ def diffInSeconds(date1,date2):
 
 def indexDiffInSeconds(indexversion1,indexversion2):
     """ compares the milliseconds that the solr indexversion represent against each other
-    
-    Returns the difference in seconds, between the two millisecond values the index version 
+
+    Returns the difference in seconds, between the two millisecond values the index version
     numbers represent
-    
+
     indexversion1 -- the milliseconds index version number for index 1
     indexversion2 -- the milliseconds index version number for index 2
 
@@ -307,14 +308,14 @@ def checkIndexLagAgainstThresholds(lag,warningThreshold,criticalThreshold):
     lag -- the number of seconds to check against the given thresholds.  if -1 'ERROR' is returned
     warningThreshold -- The number of seconds, of which if the lag is greater 'WARNING' is returned
     criticalThreshold -- The number of seconds, of which if the lag is greater 'CRITICAL' is returned
-    
+
     'OK' is returned if lag is less than warning threshold and critical threshold and not -1
 
     """
-    
+
     if lag == -1:
         return "ERROR"
-    
+
     if lag > criticalThreshold:
         return "CRITICAL"
     elif lag > warningThreshold:
@@ -325,10 +326,10 @@ def checkIndexLagAgainstThresholds(lag,warningThreshold,criticalThreshold):
 
 def recordCheckStatus(core,status,statusMap):
     """ Records (increments) warning or critial errors in given statusMap
-    
+
     core -- The name of the core for which the status was returned
     status -- The status of the check for the given core "CRITICAL", "ERROR", "WARNING"
-    
+
     """
 
     if status == 'CRITICAL' or status == 'ERROR':
@@ -341,9 +342,9 @@ def recordCheckStatus(core,status,statusMap):
 
 def checkCommandLineOptions(cmd_options,cmd_parser):
     """ Checks that the command line arguments passed to the script are correct
-    
+
     cmd_options from the OptionParser parser
-    
+
     """
 
     if not cmd_options.plugin_enabled:
@@ -375,9 +376,9 @@ def checkCommandLineOptions(cmd_options,cmd_parser):
 
 def checkStatusOfCores(corestatuschecks,corenames, warningMsg, criticalMsg, okMsg):
     """ Checks the status of the core checks.
-    
+
     The dict() object is populated for the core checking is populated as follows:
-    
+
     (
     'errors' : 1,
     'core1' : (
@@ -393,12 +394,12 @@ def checkStatusOfCores(corestatuschecks,corenames, warningMsg, criticalMsg, okMs
                'age'      : 600
               ),
     )
-    
+
     The list of given corenames is looped through to create a list of cores that are in warning state, critical state, or ok state.
     A status message is then output detailing the information in json format.  This method exits the script with either 0 = ok, 1 = warning,
     2 == critical.
-    
-    corestatuschecks -- the built up list of cores, and their status 
+
+    corestatuschecks -- the built up list of cores, and their status
     corenames -- the list of cores that have been checked
     warningMsg -- the warning message to output
     criticalMsg -- the critial message to output
@@ -428,7 +429,7 @@ def checkStatusOfCores(corestatuschecks,corenames, warningMsg, criticalMsg, okMs
     criticalCoreString= ""
     warningCoreString= ""
     okCoreString= ""
-    
+
     if len(criticalCores)>0:
         criticalCoreString="\""+ "\",\"".join(criticalCores) + "\""
 
@@ -437,19 +438,19 @@ def checkStatusOfCores(corestatuschecks,corenames, warningMsg, criticalMsg, okMs
 
     if len(okCores)>0:
         okCoreString="\""+ "\",\"".join(okCores) + "\""
-    
+
 
     statusmsg = " \"critical_cores\": [{0}], \"warning_cores\": [{1}], \"ok_cores\": [{2}],\"num_cores_checked\" : \"{3}\" , \"num_ok_cores\" : \"{4}\", \"details\": [ {5} ] }}".format(criticalCoreString, warningCoreString,okCoreString,len(corenames),len(corenames)-corestatuschecks['errors'],statusmsg)
 
 
-    if corestatuschecks['errors'] > 0:        
+    if corestatuschecks['errors'] > 0:
         if len(criticalCores)>0:
             print criticalMsg+"| { \"status\": \"CRITICAL\","+statusmsg
             exit(2)
         elif len(warningCores)>0:
             print warningMsg+"| { \"status\": \"WARNING\","+statusmsg
             exit(1)
-    else:               
+    else:
         print okMsg+"| { \"status\": \"OK\","+statusmsg
         exit(0)
 
@@ -480,6 +481,7 @@ def main():
     cmd_parser.add_option("-i", "--core", type="string", action="store",dest="corenames",help="The comma separated list of solr cores to be checked")
     cmd_parser.add_option("-t", "--timeout", type="string", action="store",dest="timeout", help="The timeout for the request to solr", default="30")
     cmd_parser.add_option("-d", "--disabled", action="store_false", dest="plugin_enabled",default=True)
+    cmd_parser.add_option("--tls", action="store_true", dest="tls_enabled",default=False, help="Enable TLS/SSL for the connection to solr")
 
     (cmd_options, cmd_args) = cmd_parser.parse_args()
     checkCommandLineOptions(cmd_options,cmd_parser)
@@ -494,13 +496,19 @@ def main():
     threshold_warn      = cmd_options.threshold_warn
     threshold_crit      = cmd_options.threshold_crit
     timeout             = int(cmd_options.timeout)
-    corenames           = list(set(cmd_options.corenames.split(','))) 
+    corenames           = list(set(cmd_options.corenames.split(',')))
+    enable_tls          = cmd_options.tls_enabled
 
     corestatuschecks    = dict()
 
     prepareCoreStatusDataStructure(corenames,corestatuschecks)
 
-    baseurl = 'http://' + solr_server + ':' + solr_server_port + '/' +  solr_server_path + '/'
+    if enable_tls:
+        solr_protocol = 'https://'
+    else:
+        solr_protocol = 'http://'
+
+    baseurl = solr_protocol + solr_server + ':' + solr_server_port + '/' +  solr_server_path + '/'
 
 
     for core in corenames:

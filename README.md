@@ -50,6 +50,8 @@ The nagios check has the following options
 
 -d, --disabled        The monitoring check is disabled
 
+  --tls               Enable TLS/SSL for the connection to solr
+
 ```
 
 # Available Checks
